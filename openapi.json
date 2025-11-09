@@ -1,0 +1,579 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "API de Gestión de Eventos del Tercer Sector",
+    "description": "API para gestionar eventos de organizaciones del tercer sector, ONGs y asociaciones sin ánimo de lucro.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://tu-dominio.com",
+      "description": "Servidor de producción"
+    },
+    {
+      "url": "http://localhost:5000",
+      "description": "Servidor de desarrollo local"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Verificar estado del servicio",
+        "description": "Endpoint para verificar que el servicio está funcionando correctamente",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Servicio funcionando correctamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "healthy"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/eventos": {
+      "get": {
+        "summary": "Listar eventos",
+        "description": "Obtiene una lista de todos los eventos, con opciones de filtrado",
+        "operationId": "listarEventos",
+        "parameters": [
+          {
+            "name": "tipo_evento",
+            "in": "query",
+            "description": "Filtrar por tipo de evento",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "taller"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "description": "Filtrar por estado del evento",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["programado", "en_curso", "finalizado", "cancelado"],
+              "example": "programado"
+            }
+          },
+          {
+            "name": "organizacion",
+            "in": "query",
+            "description": "Filtrar por organización",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "example": "ONG Ejemplo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de eventos obtenida exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "eventos": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Evento"
+                      }
+                    },
+                    "total": {
+                      "type": "integer",
+                      "example": 10
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear evento",
+        "description": "Crea un nuevo evento en el sistema",
+        "operationId": "crearEvento",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventoInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Evento creado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evento"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/eventos/{evento_id}": {
+      "get": {
+        "summary": "Obtener evento",
+        "description": "Obtiene los detalles de un evento específico",
+        "operationId": "obtenerEvento",
+        "parameters": [
+          {
+            "name": "evento_id",
+            "in": "path",
+            "description": "ID del evento",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Evento encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evento"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Evento no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Actualizar evento",
+        "description": "Actualiza los datos de un evento existente",
+        "operationId": "actualizarEvento",
+        "parameters": [
+          {
+            "name": "evento_id",
+            "in": "path",
+            "description": "ID del evento",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventoUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Evento actualizado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evento"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Evento no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Datos inválidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar evento",
+        "description": "Elimina un evento del sistema",
+        "operationId": "eliminarEvento",
+        "parameters": [
+          {
+            "name": "evento_id",
+            "in": "path",
+            "description": "ID del evento",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Evento eliminado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mensaje": {
+                      "type": "string",
+                      "example": "Evento eliminado exitosamente"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Evento no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/eventos/{evento_id}/participantes": {
+      "post": {
+        "summary": "Agregar participantes",
+        "description": "Incrementa el contador de participantes de un evento",
+        "operationId": "agregarParticipante",
+        "parameters": [
+          {
+            "name": "evento_id",
+            "in": "path",
+            "description": "ID del evento",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cantidad": {
+                    "type": "integer",
+                    "description": "Número de participantes a agregar",
+                    "example": 1,
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Participantes agregados exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evento"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Evento no encontrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cantidad inválida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/estadisticas": {
+      "get": {
+        "summary": "Obtener estadísticas",
+        "description": "Obtiene estadísticas generales de los eventos en el sistema",
+        "operationId": "obtenerEstadisticas",
+        "responses": {
+          "200": {
+            "description": "Estadísticas obtenidas exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total_eventos": {
+                      "type": "integer",
+                      "example": 25
+                    },
+                    "total_participantes": {
+                      "type": "integer",
+                      "example": 450
+                    },
+                    "eventos_por_tipo": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      },
+                      "example": {
+                        "taller": 10,
+                        "conferencia": 8,
+                        "voluntariado": 7
+                      }
+                    },
+                    "eventos_por_estado": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      },
+                      "example": {
+                        "programado": 15,
+                        "en_curso": 5,
+                        "finalizado": 5
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Evento": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "ID único del evento",
+            "example": 1
+          },
+          "titulo": {
+            "type": "string",
+            "description": "Título del evento",
+            "example": "Taller de Alfabetización Digital"
+          },
+          "descripcion": {
+            "type": "string",
+            "description": "Descripción detallada del evento",
+            "example": "Taller gratuito para personas mayores sobre uso de smartphones"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora del evento",
+            "example": "2024-03-15T10:00:00Z"
+          },
+          "ubicacion": {
+            "type": "string",
+            "description": "Ubicación física o virtual del evento",
+            "example": "Centro Comunitario, Calle Mayor 123"
+          },
+          "organizacion": {
+            "type": "string",
+            "description": "Organización que organiza el evento",
+            "example": "Fundación Digital para Todos"
+          },
+          "tipo_evento": {
+            "type": "string",
+            "description": "Tipo o categoría del evento",
+            "example": "taller"
+          },
+          "estado": {
+            "type": "string",
+            "enum": ["programado", "en_curso", "finalizado", "cancelado"],
+            "description": "Estado actual del evento",
+            "example": "programado"
+          },
+          "participantes": {
+            "type": "integer",
+            "description": "Número de participantes inscritos",
+            "example": 25
+          },
+          "creado_en": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha de creación del registro",
+            "example": "2024-02-01T08:30:00Z"
+          }
+        },
+        "required": ["id", "titulo", "descripcion", "fecha", "ubicacion", "organizacion", "tipo_evento", "estado", "participantes", "creado_en"]
+      },
+      "EventoInput": {
+        "type": "object",
+        "properties": {
+          "titulo": {
+            "type": "string",
+            "description": "Título del evento",
+            "example": "Taller de Alfabetización Digital"
+          },
+          "descripcion": {
+            "type": "string",
+            "description": "Descripción detallada del evento",
+            "example": "Taller gratuito para personas mayores sobre uso de smartphones"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora del evento",
+            "example": "2024-03-15T10:00:00Z"
+          },
+          "ubicacion": {
+            "type": "string",
+            "description": "Ubicación física o virtual del evento",
+            "example": "Centro Comunitario, Calle Mayor 123"
+          },
+          "organizacion": {
+            "type": "string",
+            "description": "Organización que organiza el evento",
+            "example": "Fundación Digital para Todos"
+          },
+          "tipo_evento": {
+            "type": "string",
+            "description": "Tipo o categoría del evento",
+            "example": "taller"
+          },
+          "participantes": {
+            "type": "integer",
+            "description": "Número de participantes inscritos (opcional)",
+            "example": 0,
+            "default": 0
+          }
+        },
+        "required": ["titulo", "descripcion", "fecha", "ubicacion", "organizacion", "tipo_evento"]
+      },
+      "EventoUpdate": {
+        "type": "object",
+        "properties": {
+          "titulo": {
+            "type": "string",
+            "description": "Título del evento",
+            "example": "Taller de Alfabetización Digital"
+          },
+          "descripcion": {
+            "type": "string",
+            "description": "Descripción detallada del evento",
+            "example": "Taller gratuito para personas mayores sobre uso de smartphones"
+          },
+          "fecha": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fecha y hora del evento",
+            "example": "2024-03-15T10:00:00Z"
+          },
+          "ubicacion": {
+            "type": "string",
+            "description": "Ubicación física o virtual del evento",
+            "example": "Centro Comunitario, Calle Mayor 123"
+          },
+          "organizacion": {
+            "type": "string",
+            "description": "Organización que organiza el evento",
+            "example": "Fundación Digital para Todos"
+          },
+          "tipo_evento": {
+            "type": "string",
+            "description": "Tipo o categoría del evento",
+            "example": "taller"
+          },
+          "estado": {
+            "type": "string",
+            "enum": ["programado", "en_curso", "finalizado", "cancelado"],
+            "description": "Estado actual del evento",
+            "example": "programado"
+          },
+          "participantes": {
+            "type": "integer",
+            "description": "Número de participantes inscritos",
+            "example": 25
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Mensaje de error",
+            "example": "Evento no encontrado"
+          }
+        },
+        "required": ["error"]
+      }
+    }
+  }
+}
