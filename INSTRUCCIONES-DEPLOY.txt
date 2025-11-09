@@ -1,0 +1,103 @@
+===============================================
+INSTRUCCIONES PARA DESPLEGAR EN RAILWAY
+===============================================
+
+PASO 1: Subir a GitHub
+-----------------------
+
+Abre una terminal y ejecuta estos comandos UNO POR UNO:
+
+1. cd C:\Users\iutre\IdeaProjects\SIRIA\agente-tercer-sector
+
+2. git remote add origin https://github.com/TU_USUARIO/agente-tercer-sector.git
+   (REEMPLAZA "TU_USUARIO" por tu usuario de GitHub)
+
+3. git branch -M main
+
+4. git push -u origin main
+   (Te pedirá usuario y contraseña de GitHub)
+
+
+PASO 2: Desplegar en Railway
+-----------------------------
+
+1. Ve a: https://railway.app
+
+2. Haz clic en "Login" o "Start a New Project"
+
+3. Inicia sesión con GitHub
+
+4. Haz clic en "New Project"
+
+5. Selecciona "Deploy from GitHub repo"
+
+6. Busca y selecciona: agente-tercer-sector
+
+7. Railway automáticamente detectará Python y desplegará
+
+8. Espera 1-2 minutos
+
+
+PASO 3: Obtener URL pública
+----------------------------
+
+1. En Railway, haz clic en tu proyecto desplegado
+
+2. Ve a Settings (engranaje)
+
+3. Busca la sección "Domains"
+
+4. Haz clic en "Generate Domain"
+
+5. Copia la URL que te da (ejemplo: https://agente-tercer-sector-production.up.railway.app)
+
+
+PASO 4: Probar que funciona
+----------------------------
+
+Abre tu navegador y ve a:
+https://TU-URL-DE-RAILWAY.up.railway.app/health
+
+Deberías ver:
+{
+  "status": "healthy",
+  "timestamp": "..."
+}
+
+
+PASO 5: Conectar con ChatGPT
+-----------------------------
+
+1. Ve a ChatGPT: https://chat.openai.com
+
+2. Haz clic en tu perfil (abajo izquierda)
+
+3. Selecciona "My GPTs"
+
+4. Haz clic en "Create a GPT"
+
+5. Ve a la pestaña "Configure"
+
+6. Scroll hasta "Actions"
+
+7. Haz clic en "Create new action"
+
+8. Importa el archivo: openapi.json
+   (Está en: C:\Users\iutre\IdeaProjects\SIRIA\agente-tercer-sector\openapi.json)
+
+9. En el JSON importado, busca "servers" y cambia:
+   "url": "http://localhost:5000"
+   POR
+   "url": "https://TU-URL-DE-RAILWAY"
+
+10. Guarda
+
+11. Prueba tu GPT preguntándole:
+    - "Crea un evento de voluntariado"
+    - "Muéstrame todos los eventos"
+    - "Dame estadísticas"
+
+
+¡LISTO! Ya tienes tu GPT conectado a tu API.
+
+===============================================

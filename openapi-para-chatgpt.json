@@ -1,0 +1,232 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "API de Gestión de Eventos del Tercer Sector",
+    "description": "API para gestionar eventos de organizaciones del tercer sector, ONGs y asociaciones sin ánimo de lucro.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://web-production-e1afb.up.railway.app"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Verificar estado del servicio",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Servicio funcionando correctamente"
+          }
+        }
+      }
+    },
+    "/api/eventos": {
+      "get": {
+        "summary": "Listar eventos",
+        "description": "Obtiene una lista de todos los eventos, con opciones de filtrado",
+        "operationId": "listarEventos",
+        "parameters": [
+          {
+            "name": "tipo_evento",
+            "in": "query",
+            "description": "Filtrar por tipo de evento",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "estado",
+            "in": "query",
+            "description": "Filtrar por estado del evento",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["programado", "en_curso", "finalizado", "cancelado"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de eventos obtenida exitosamente"
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear evento",
+        "description": "Crea un nuevo evento en el sistema",
+        "operationId": "crearEvento",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "titulo": {
+                    "type": "string"
+                  },
+                  "descripcion": {
+                    "type": "string"
+                  },
+                  "fecha": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "ubicacion": {
+                    "type": "string"
+                  },
+                  "organizacion": {
+                    "type": "string"
+                  },
+                  "tipo_evento": {
+                    "type": "string"
+                  },
+                  "participantes": {
+                    "type": "integer",
+                    "default": 0
+                  }
+                },
+                "required": ["titulo", "descripcion", "fecha", "ubicacion", "organizacion", "tipo_evento"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Evento creado exitosamente"
+          }
+        }
+      }
+    },
+    "/api/eventos/{evento_id}": {
+      "get": {
+        "summary": "Obtener evento",
+        "operationId": "obtenerEvento",
+        "parameters": [
+          {
+            "name": "evento_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Evento encontrado"
+          }
+        }
+      },
+      "put": {
+        "summary": "Actualizar evento",
+        "operationId": "actualizarEvento",
+        "parameters": [
+          {
+            "name": "evento_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "titulo": {"type": "string"},
+                  "descripcion": {"type": "string"},
+                  "fecha": {"type": "string", "format": "date-time"},
+                  "ubicacion": {"type": "string"},
+                  "organizacion": {"type": "string"},
+                  "tipo_evento": {"type": "string"},
+                  "estado": {"type": "string"},
+                  "participantes": {"type": "integer"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Evento actualizado"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar evento",
+        "operationId": "eliminarEvento",
+        "parameters": [
+          {
+            "name": "evento_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Evento eliminado"
+          }
+        }
+      }
+    },
+    "/api/eventos/{evento_id}/participantes": {
+      "post": {
+        "summary": "Agregar participantes",
+        "operationId": "agregarParticipante",
+        "parameters": [
+          {
+            "name": "evento_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cantidad": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Participantes agregados"
+          }
+        }
+      }
+    },
+    "/api/estadisticas": {
+      "get": {
+        "summary": "Obtener estadísticas",
+        "operationId": "obtenerEstadisticas",
+        "responses": {
+          "200": {
+            "description": "Estadísticas obtenidas"
+          }
+        }
+      }
+    }
+  }
+}

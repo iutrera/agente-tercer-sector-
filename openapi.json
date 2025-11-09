@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://tu-dominio.com",
+      "url": "https://web-production-e1afb.up.railway.app",
       "description": "Servidor de producción"
     },
     {

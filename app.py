@@ -1,227 +1,195 @@
-from flask import Flask, request, jsonify
-from datetime import datetime
 import os
+import base64
+import smtplib
+from email.message import EmailMessage
+from flask import Flask, request, jsonify, send_file, abort
+from datetime import datetime
 from dotenv import load_dotenv
 
-# Cargar variables de entorno
 load_dotenv()
 
+SECRET_TOKEN = os.getenv("SECRET_TOKEN", "")
+SMTP_HOST = os.getenv("SMTP_HOST", "")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASS = os.getenv("SMTP_PASS", "")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+DEFAULT_FROM = os.getenv("DEFAULT_FROM", SMTP_USER)
+
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-secret-key')
 
-# Base de datos simulada (en memoria)
-eventos = []
-contador_eventos = 1
+# --- Seguridad básica: exigir Authorization: Bearer <SECRET_TOKEN> ---
+PUBLIC_PATHS = {"/health", "/openapi.json"}
 
-# Modelos de datos (estructura de ejemplo)
-"""
-Evento:
-{
-    "id": int,
-    "titulo": str,
-    "descripcion": str,
-    "fecha": str (ISO format),
-    "ubicacion": str,
-    "organizacion": str,
-    "tipo_evento": str,
-    "estado": str,
-    "participantes": int,
-    "creado_en": str (ISO format)
-}
-"""
+@app.before_request
+def check_auth():
+    if request.path in PUBLIC_PATHS:
+        return
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        abort(401, description="Missing Bearer token")
+    token = auth.split(" ", 1)[1].strip()
+    if token != SECRET_TOKEN:
+        abort(401, description="Invalid token")
 
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Endpoint de verificación de salud del servicio"""
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat()
-    }), 200
+# --- Salud ---
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok", "time": datetime.utcnow().isoformat() + "Z"})
 
-@app.route('/api/eventos', methods=['GET'])
-def listar_eventos():
-    """
-    Lista todos los eventos disponibles
-    Parámetros de query opcionales:
-    - tipo_evento: filtrar por tipo
-    - estado: filtrar por estado
-    - organizacion: filtrar por organización
-    """
-    tipo_evento = request.args.get('tipo_evento')
-    estado = request.args.get('estado')
-    organizacion = request.args.get('organizacion')
+# --- Servir el esquema OpenAPI para registrar la Acción en el GPT ---
+@app.route("/openapi.json", methods=["GET"])
+def openapi_schema():
+    return send_file("openapi.json", mimetype="application/json")
 
-    eventos_filtrados = eventos.copy()
-
-    if tipo_evento:
-        eventos_filtrados = [e for e in eventos_filtrados if e.get('tipo_evento') == tipo_evento]
-    if estado:
-        eventos_filtrados = [e for e in eventos_filtrados if e.get('estado') == estado]
-    if organizacion:
-        eventos_filtrados = [e for e in eventos_filtrados if e.get('organizacion') == organizacion]
-
-    return jsonify({
-        "eventos": eventos_filtrados,
-        "total": len(eventos_filtrados)
-    }), 200
-
-@app.route('/api/eventos/<int:evento_id>', methods=['GET'])
-def obtener_evento(evento_id):
-    """Obtiene los detalles de un evento específico"""
-    evento = next((e for e in eventos if e['id'] == evento_id), None)
-
-    if not evento:
-        return jsonify({"error": "Evento no encontrado"}), 404
-
-    return jsonify(evento), 200
-
-@app.route('/api/eventos', methods=['POST'])
-def crear_evento():
-    """
-    Crea un nuevo evento
-    Body esperado:
+# --- Datos de ejemplo: eventos (en producción, esto vendrá de tu BD/Sheets) ---
+EVENTS_DB = [
     {
-        "titulo": "string",
-        "descripcion": "string",
-        "fecha": "string (ISO format)",
-        "ubicacion": "string",
-        "organizacion": "string",
-        "tipo_evento": "string",
-        "participantes": int (opcional, default: 0)
+        "nombre": "Foro de Inclusión Laboral 2025",
+        "entidad": "Fundación ONCE",
+        "fecha": "2025-11-04",
+        "hora": "10:00",
+        "modalidad": "Presencial",
+        "lugar": "Madrid",
+        "enlace": "https://fundaciononce.es/foro",
+        "pais": "España",
+        "categoria": "Inclusión laboral"
+    },
+    {
+        "nombre": "Webinar: Formación Profesional para Migrantes",
+        "entidad": "Entreculturas",
+        "fecha": "2025-11-12",
+        "hora": "16:00",
+        "modalidad": "Online",
+        "lugar": "",
+        "enlace": "https://entreculturas.org/webinar",
+        "pais": "España",
+        "categoria": "Acompañamiento a migrantes"
+    },
+    {
+        "nombre": "Seminario de Cooperación Internacional",
+        "entidad": "Fundación La Caixa",
+        "fecha": "2025-11-20",
+        "hora": "09:30",
+        "modalidad": "Presencial",
+        "lugar": "Barcelona",
+        "enlace": "https://fundacionlacaixa.org/seminario",
+        "pais": "España",
+        "categoria": "Cooperación internacional y desarrollo"
+    }
+]
+
+# --- GET /get_events: devuelve la lista de eventos (filtros opcionales) ---
+@app.route("/get_events", methods=["GET"])
+def get_events():
+    """
+    Parámetros opcionales:
+      - from_date (YYYY-MM-DD)
+      - to_date   (YYYY-MM-DD)
+      - pais      (España|Colombia)
+      - categoria (texto libre)
+    """
+    from_date = request.args.get("from_date")
+    to_date = request.args.get("to_date")
+    pais = request.args.get("pais")
+    categoria = request.args.get("categoria")
+
+    def in_range(e):
+        try:
+            d = datetime.strptime(e.get("fecha", ""), "%Y-%m-%d").date()
+        except Exception:
+            return False
+        if from_date:
+            try:
+                if d < datetime.strptime(from_date, "%Y-%m-%d").date():
+                    return False
+            except Exception:
+                pass
+        if to_date:
+            try:
+                if d > datetime.strptime(to_date, "%Y-%m-%d").date():
+                    return False
+            except Exception:
+                pass
+        return True
+
+    results = [e for e in EVENTS_DB if in_range(e)]
+    if pais:
+        results = [e for e in results if e.get("pais", "").lower() == pais.lower()]
+    if categoria:
+        results = [e for e in results if categoria.lower() in e.get("categoria", "").lower()]
+
+    return jsonify(results)
+
+# --- POST /log_activity: registrar logs que envíe el GPT ---
+@app.route("/log_activity", methods=["POST"])
+def log_activity():
+    data = request.json or {}
+    print(f"[{datetime.now().isoformat()}] GPT_LOG: {data}")
+    return jsonify({"status": "ok"})
+
+# --- POST /send_email: enviar correo con (opcional) adjunto base64 ---
+@app.route("/send_email", methods=["POST"])
+def send_email():
+    """
+    JSON esperado:
+    {
+      "to": "destinatario@dominio.com",
+      "subject": "Asunto",
+      "body": "Texto del mensaje (puede ser HTML si pones content_type='html')",
+      "content_type": "plain" | "html",  (opcional, por defecto 'plain')
+      "attachment_base64": "....",       (opcional)
+      "filename": "agenda_eventos.xlsx"  (opcional, requerido si hay adjunto)
     }
     """
-    global contador_eventos
+    payload = request.json or {}
+    to = payload.get("to")
+    subject = payload.get("subject", "")
+    body = payload.get("body", "")
+    content_type = (payload.get("content_type") or "plain").lower()
+    attachment_b64 = payload.get("attachment_base64")
+    filename = payload.get("filename")
 
-    data = request.get_json()
+    if not to:
+        abort(400, description="Missing 'to'")
+    if not DEFAULT_FROM:
+        abort(500, description="DEFAULT_FROM not configured")
 
-    # Validaciones básicas
-    campos_requeridos = ['titulo', 'descripcion', 'fecha', 'ubicacion', 'organizacion', 'tipo_evento']
-    for campo in campos_requeridos:
-        if campo not in data:
-            return jsonify({"error": f"Campo requerido faltante: {campo}"}), 400
+    msg = EmailMessage()
+    msg["From"] = DEFAULT_FROM
+    msg["To"] = to
+    msg["Subject"] = subject
 
-    # Validar formato de fecha
+    if content_type == "html":
+        msg.add_alternative(body, subtype="html")
+    else:
+        msg.set_content(body)
+
+    if attachment_b64:
+        if not filename:
+            abort(400, description="Missing 'filename' for attachment")
+        try:
+            data = base64.b64decode(attachment_b64)
+        except Exception as ex:
+            abort(400, description=f"Invalid base64: {ex}")
+        msg.add_attachment(data, maintype="application", subtype="octet-stream", filename=filename)
+
     try:
-        datetime.fromisoformat(data['fecha'].replace('Z', '+00:00'))
-    except ValueError:
-        return jsonify({"error": "Formato de fecha inválido. Use formato ISO 8601"}), 400
+        if SMTP_USE_TLS:
+            server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
+            server.starttls()
+        else:
+            server = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT)
+        if SMTP_USER and SMTP_PASS:
+            server.login(SMTP_USER, SMTP_PASS)
+        server.send_message(msg)
+        server.quit()
+    except Exception as ex:
+        abort(500, description=f"SMTP error: {ex}")
 
-    # Crear nuevo evento
-    nuevo_evento = {
-        "id": contador_eventos,
-        "titulo": data['titulo'],
-        "descripcion": data['descripcion'],
-        "fecha": data['fecha'],
-        "ubicacion": data['ubicacion'],
-        "organizacion": data['organizacion'],
-        "tipo_evento": data['tipo_evento'],
-        "estado": "programado",
-        "participantes": data.get('participantes', 0),
-        "creado_en": datetime.now().isoformat()
-    }
+    return jsonify({"status": "sent"})
 
-    eventos.append(nuevo_evento)
-    contador_eventos += 1
-
-    return jsonify(nuevo_evento), 201
-
-@app.route('/api/eventos/<int:evento_id>', methods=['PUT'])
-def actualizar_evento(evento_id):
-    """
-    Actualiza un evento existente
-    Body: mismos campos que crear_evento (todos opcionales)
-    """
-    evento = next((e for e in eventos if e['id'] == evento_id), None)
-
-    if not evento:
-        return jsonify({"error": "Evento no encontrado"}), 404
-
-    data = request.get_json()
-
-    # Actualizar campos proporcionados
-    campos_actualizables = ['titulo', 'descripcion', 'fecha', 'ubicacion', 'organizacion', 'tipo_evento', 'estado', 'participantes']
-
-    for campo in campos_actualizables:
-        if campo in data:
-            # Validar fecha si se está actualizando
-            if campo == 'fecha':
-                try:
-                    datetime.fromisoformat(data['fecha'].replace('Z', '+00:00'))
-                except ValueError:
-                    return jsonify({"error": "Formato de fecha inválido. Use formato ISO 8601"}), 400
-            evento[campo] = data[campo]
-
-    return jsonify(evento), 200
-
-@app.route('/api/eventos/<int:evento_id>', methods=['DELETE'])
-def eliminar_evento(evento_id):
-    """Elimina un evento"""
-    global eventos
-
-    evento = next((e for e in eventos if e['id'] == evento_id), None)
-
-    if not evento:
-        return jsonify({"error": "Evento no encontrado"}), 404
-
-    eventos = [e for e in eventos if e['id'] != evento_id]
-
-    return jsonify({"mensaje": "Evento eliminado exitosamente"}), 200
-
-@app.route('/api/eventos/<int:evento_id>/participantes', methods=['POST'])
-def agregar_participante(evento_id):
-    """
-    Incrementa el contador de participantes de un evento
-    Body: { "cantidad": int } (opcional, default: 1)
-    """
-    evento = next((e for e in eventos if e['id'] == evento_id), None)
-
-    if not evento:
-        return jsonify({"error": "Evento no encontrado"}), 404
-
-    data = request.get_json() or {}
-    cantidad = data.get('cantidad', 1)
-
-    if not isinstance(cantidad, int) or cantidad < 1:
-        return jsonify({"error": "Cantidad debe ser un entero positivo"}), 400
-
-    evento['participantes'] = evento.get('participantes', 0) + cantidad
-
-    return jsonify(evento), 200
-
-@app.route('/api/estadisticas', methods=['GET'])
-def obtener_estadisticas():
-    """
-    Obtiene estadísticas generales de eventos
-    """
-    total_eventos = len(eventos)
-    total_participantes = sum(e.get('participantes', 0) for e in eventos)
-
-    eventos_por_tipo = {}
-    eventos_por_estado = {}
-
-    for evento in eventos:
-        tipo = evento.get('tipo_evento', 'Sin tipo')
-        estado = evento.get('estado', 'Sin estado')
-
-        eventos_por_tipo[tipo] = eventos_por_tipo.get(tipo, 0) + 1
-        eventos_por_estado[estado] = eventos_por_estado.get(estado, 0) + 1
-
-    return jsonify({
-        "total_eventos": total_eventos,
-        "total_participantes": total_participantes,
-        "eventos_por_tipo": eventos_por_tipo,
-        "eventos_por_estado": eventos_por_estado
-    }), 200
-
-# Manejo de errores
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({"error": "Recurso no encontrado"}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({"error": "Error interno del servidor"}), 500
-
-if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+if __name__ == "__main__":
+    # Ejecuta en 0.0.0.0 para que ngrok lo pueda ver
+    port = int(os.getenv('PORT', 8000))
+    app.run(host="0.0.0.0", port=port)

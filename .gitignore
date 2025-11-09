@@ -41,3 +41,17 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Output files
+output/
+*.xlsx
+*.xls
+
+# Credentials
+credentials.json
+service-account.json
+google-credentials.json
+
+# Temporary files
+temp/
+tmp/
